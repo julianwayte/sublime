@@ -1,0 +1,83 @@
+name: "OCR: QR code invoice scam in image attachments"
+description: |
+  Detects image-only messages (minimal or no body text) containing QR codes in image
+  attachments where OCR-extracted text includes fake invoice or payment language combined
+  with urgency keywords such as "scan immediately", "expires", or "past due". This targets
+  QR code invoice scams that bypass text-based detection by embedding all content in images.
+type: "rule"
+severity: "high"
+source: |
+  type.inbound
+
+  // message has little or no body text (image-only delivery)
+  and (
+    body.current_thread.text is null
+    or body.current_thread.text == ""
+    or length(body.current_thread.text) < 50
+  )
+
+  // at least one image attachment with a QR code and invoice/urgency language in OCR
+  and any(attachments,
+          .file_type in $file_types_images
+          and any(file.explode(.),
+                  // attachment contains a QR code
+                  .scan.qr.type is not null
+
+                  // OCR text contains invoice or payment language
+                  and regex.icontains(.scan.ocr.raw,
+                                      'invoice',
+                                      'payment\s+(due|required|outstanding)',
+                                      'amount\s+(due|owed|outstanding)',
+                                      'balance\s+(due|owed|remaining)',
+                                      'past\s+due',
+                                      'remittance',
+                                      'billing\s+statement',
+                                      'pay\s+(now|immediately|today)',
+                                      'total\s+(due|amount|balance)'
+                  )
+
+                  // OCR text also contains urgency or scan-action language
+                  and regex.icontains(.scan.ocr.raw,
+                                      'scan\s+(this|the|below|above|here|immediately|now|to\s+pay)',
+                                      'expires?\s+(on|in|today|soon|within)',
+                                      'past\s+due',
+                                      'immediate\s+(action|attention|payment)',
+                                      'overdue',
+                                      'final\s+notice',
+                                      'urgent',
+                                      'act\s+(now|immediately|today)',
+                                      'failure\s+to\s+pay',
+                                      'avoid\s+(late|penalty|disconnection|suspension)'
+                  )
+          )
+  )
+
+  // sender profile: new, outlier, or previously malicious
+  and (
+    profile.by_sender_email().prevalence in ("new", "outlier")
+    or (
+      profile.by_sender_email().any_messages_malicious_or_spam
+      and not profile.by_sender_email().any_messages_benign
+    )
+  )
+  and not profile.by_sender_email().solicited
+
+  // negate highly trusted sender domains unless they fail DMARC authentication
+  and not (
+    sender.email.domain.root_domain in $high_trust_sender_root_domains
+    and coalesce(headers.auth_summary.dmarc.pass, false)
+  )
+attack_types:
+  - "BEC/Fraud"
+tactics_and_techniques:
+  - "Evasion"
+  - "Image as content"
+  - "QR code"
+  - "Social engineering"
+detection_methods:
+  - "Content analysis"
+  - "File analysis"
+  - "Optical Character Recognition"
+  - "QR code analysis"
+  - "Sender analysis"
+id: "a1b2c3d4-0001-4000-8000-qrinvoicescam"

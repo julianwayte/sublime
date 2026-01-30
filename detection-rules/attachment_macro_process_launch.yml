@@ -1,0 +1,97 @@
+name: "Attachment: Office document with macro launching external process"
+description: |
+  Detects Office documents containing macros that invoke shell commands, PowerShell, or
+  other process-launching utilities (cmd.exe, powershell.exe, wscript.exe, cscript.exe,
+  mshta.exe, certutil.exe, bitsadmin.exe, regsvr32.exe). This targets macro-based process
+  execution, a common malware delivery technique, from unsolicited or new senders.
+type: "rule"
+severity: "high"
+source: |
+  type.inbound
+
+  // attachment is an Office file with macros
+  and any(filter(attachments,
+                 .file_extension in $file_extensions_macros
+                 and .size < 5000000
+          ),
+          any(file.explode(.),
+              // strings contain process launch patterns
+              (
+                regex.icontains(.scan.strings.raw,
+                                'cmd\.exe',
+                                'cmd\s+/[ckq]',
+                                'powershell\.exe',
+                                'powershell\s+-[eE]',
+                                'pwsh\.exe',
+                                'wscript\.exe',
+                                'wscript\.shell',
+                                'cscript\.exe',
+                                'mshta\.exe',
+                                'mshta\s+vbscript',
+                                'certutil\.exe',
+                                'certutil\s+-urlcache',
+                                'bitsadmin\.exe',
+                                'bitsadmin\s+/transfer',
+                                'regsvr32\.exe',
+                                'regsvr32\s+/s',
+                                'rundll32\.exe',
+                                'Shell\s*\(\s*"',
+                                'WScript\.Shell',
+                                'Scripting\.FileSystemObject',
+                                'MSXML2\.XMLHTTP',
+                                'Microsoft\.XMLHTTP',
+                                'New-Object\s+System\.Net',
+                                'Invoke-Expression',
+                                'Invoke-WebRequest',
+                                'Start-Process',
+                                'IEX\s*\(',
+                                'DownloadString\s*\(',
+                                'DownloadFile\s*\(',
+                                'URLDownloadToFile'
+                )
+
+                // also check OCR output for process patterns in embedded images
+                or regex.icontains(.scan.ocr.raw,
+                                   'cmd\.exe',
+                                   'powershell',
+                                   'wscript',
+                                   'cscript',
+                                   'mshta'
+                )
+              )
+          )
+  )
+
+  // sender profile: new, outlier, or previously malicious
+  and (
+    (
+      profile.by_sender_email().prevalence in ("new", "outlier")
+      and not profile.by_sender_email().solicited
+    )
+    or (
+      profile.by_sender_email().any_messages_malicious_or_spam
+      and not profile.by_sender_email().any_messages_benign
+    )
+  )
+
+  // negate highly trusted sender domains unless they fail DMARC authentication
+  and (
+    (
+      sender.email.domain.root_domain in $high_trust_sender_root_domains
+      and not headers.auth_summary.dmarc.pass
+    )
+    or sender.email.domain.root_domain not in $high_trust_sender_root_domains
+  )
+  and not profile.by_sender_email().any_messages_benign
+attack_types:
+  - "Malware/Ransomware"
+tactics_and_techniques:
+  - "Exploit"
+  - "Macros"
+  - "Scripting"
+detection_methods:
+  - "Content analysis"
+  - "File analysis"
+  - "Macro analysis"
+  - "Sender analysis"
+id: "a1b2c3d4-0003-4000-8000-macroproclaunch"
