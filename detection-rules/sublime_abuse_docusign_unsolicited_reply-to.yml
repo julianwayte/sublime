@@ -2,6 +2,7 @@ name: "Service abuse: DocuSign share from an unsolicited reply-to address"
 description: "DocuSign shares which contain a reply-to address or domain that has not been previously observed by the recipient organization."
 type: "rule"
 severity: "medium"
+enabled: true
 source: |
   type.inbound
   
