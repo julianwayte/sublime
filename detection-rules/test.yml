@@ -1,0 +1,9 @@
+name: My Custom Phishing Rule
+severity: medium
+source: |
+  type.inbound
+  and ilike(subject.subject, "*urgent invoice*")
+  and any(attachments, .file_extension in~ ("pdf"))
+tags:
+  - "phishing"
+  - "invoice"
