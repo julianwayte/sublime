@@ -1,0 +1,57 @@
+name: "Callback phishing: Urgency with phone number from new or suspicious sender"
+description: |
+  Detects inbound messages that combine urgency language in the subject line
+  (e.g., "action required", "important notice") with a phone number in the body,
+  sent from a new or suspicious sender. This pattern is characteristic of callback
+  phishing (vishing) campaigns where scammers impersonate companies or government
+  agencies and direct victims to call a fraudulent phone number. Examples include
+  fake bankruptcy notices, warranty expirations, and tax filing deadlines.
+type: "rule"
+severity: "high"
+source: |
+  type.inbound
+
+  // subject contains urgency language
+  and regex.icontains(subject.subject,
+                      'action required',
+                      'urgent',
+                      'important notice',
+                      'immediate action',
+                      'immediate response',
+                      'respond immediately'
+  )
+
+  // body contains a phone number (US format: XXX-XXX-XXXX or variations)
+  and regex.contains(body.current_thread.text,
+                     '[0-9]{3}.?[0-9]{3}.?[0-9]{4}'
+  )
+
+  // body contains legal, financial, or account threat language
+  and regex.icontains(body.current_thread.text,
+                      'bankruptcy',
+                      'chapter [0-9]+ liquidation',
+                      'warranty.*terminat',
+                      'tax credit.*expir',
+                      'incentive.*expir',
+                      'contact.*support.*department',
+                      'cessation of.*operations'
+  )
+
+  // sender is not trusted
+  and sender.email.domain.root_domain not in $high_trust_sender_root_domains
+  and sender.email.domain.root_domain not in $org_domains
+
+  // sender is new or from suspicious TLD
+  and (
+    sender.email.domain.tld in $suspicious_tlds
+    or profile.by_sender().prevalence in ("new", "outlier")
+  )
+attack_types:
+  - "BEC/Fraud"
+  - "Callback Phishing"
+tactics_and_techniques:
+  - "Impersonation: Brand"
+  - "Social engineering"
+detection_methods:
+  - "Content analysis"
+  - "Sender analysis"
