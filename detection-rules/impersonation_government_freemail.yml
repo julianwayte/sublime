@@ -1,0 +1,47 @@
+name: "Impersonation: Government agency from freemail provider"
+description: |
+  Detects inbound messages that reference government agencies (USPTO, IRS, SSA, FBI,
+  USPS, SEC, FTC, etc.) in the subject line or sender display name while being sent
+  from a freemail provider. This targets social engineering campaigns that impersonate
+  government entities to create urgency around legal filings, tax obligations,
+  trademark registrations, or law enforcement actions. Legitimate government
+  communications are sent from .gov domains, not freemail accounts.
+type: "rule"
+severity: "high"
+source: |
+  type.inbound
+
+  // subject or display name references a government agency
+  and (
+    regex.icontains(subject.subject,
+                    'USPTO',
+                    'Internal Revenue',
+                    'Social Security Admin',
+                    'Department of (Justice|State|Treasury|Labor|Homeland)',
+                    'Immigration.*Services',
+                    'Federal (Trade|Communications) Commission',
+                    'OFFICIAL.*NOTICE.*REGISTRATION',
+                    'U.?S.? (Patent|Copyright|Customs|Marshals)'
+    )
+    or regex.icontains(sender.display_name,
+                       'USPTO',
+                       'Internal Revenue',
+                       'Social Security',
+                       'Department of (Justice|State|Treasury)',
+                       'Federal Trade Commission'
+    )
+  )
+
+  // sender is from freemail provider
+  and sender.email.domain.domain in $free_email_providers
+
+  // not from an actual .gov domain
+  and not strings.iends_with(sender.email.domain.domain, ".gov")
+attack_types:
+  - "BEC/Fraud"
+tactics_and_techniques:
+  - "Impersonation: Government"
+  - "Social engineering"
+detection_methods:
+  - "Content analysis"
+  - "Sender analysis"
