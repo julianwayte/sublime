@@ -1,0 +1,61 @@
+name: "Spam: Unsolicited job recruitment with profile and resume lure from new sender"
+description: |
+  Detects inbound messages from new or unfamiliar senders that use job recruitment
+  language combined with profile-scraping and resume-customization lures. These emails
+  claim to have "noticed your profile" or "found your profile" and offer to
+  "customize your resume" — tactics used by bulk job spam and potential data
+  harvesting operations. Legitimate recruiters typically send from known platforms
+  (LinkedIn, Indeed) or established recruiting firm domains with prior relationship.
+type: "rule"
+severity: "low"
+source: |
+  type.inbound
+
+  // subject contains job-related language
+  and regex.icontains(subject.subject,
+                      'opportunity',
+                      'job post',
+                      'hiring',
+                      'position',
+                      'career',
+                      'we are looking for',
+                      'role.*(at|in) '
+  )
+
+  // body contains profile-scraping and resume lure language
+  and 2 of (
+    regex.icontains(body.current_thread.text,
+                    'noticed your profile',
+                    'found your profile',
+                    'viewed your profile',
+                    'came across your profile',
+                    'great fit'
+    ),
+    regex.icontains(body.current_thread.text,
+                    'customiz.*resume',
+                    'tailor.*resume',
+                    'apply here',
+                    'view more details',
+                    'full job details'
+    ),
+    regex.icontains(body.current_thread.text,
+                    'also (be )?interested in',
+                    'these positions',
+                    'these (roles|opportunities)',
+                    'other opportunities'
+    )
+  )
+
+  // sender is not a known trusted domain or org domain
+  and sender.email.domain.root_domain not in $high_trust_sender_root_domains
+  and sender.email.domain.root_domain not in $org_domains
+
+  // sender is new
+  and profile.by_sender().prevalence in ("new", "outlier")
+attack_types:
+  - "Spam"
+tactics_and_techniques:
+  - "Social engineering"
+detection_methods:
+  - "Content analysis"
+  - "Sender analysis"

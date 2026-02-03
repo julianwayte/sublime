@@ -1,0 +1,52 @@
+name: "Spam: Unsolicited B2B service solicitation from freemail provider"
+description: |
+  Detects inbound messages from freemail providers (Gmail, Outlook, Yahoo, etc.)
+  that contain unsolicited business service solicitation language such as "we
+  specialize", "our portfolio", "pricing options", or similar cold-email patterns.
+  These are typically sent by new/unknown senders offering website design, SEO,
+  marketing, or other services without prior relationship. Legitimate B2B outreach
+  typically uses company domains, not freemail.
+type: "rule"
+severity: "low"
+source: |
+  type.inbound
+
+  // sender is from freemail
+  and sender.email.domain.domain in $free_email_providers
+
+  // body contains service solicitation patterns
+  and 2 of (
+    regex.icontains(body.current_thread.text,
+                    'we specialize',
+                    'our team is ready',
+                    'our (services|solutions)',
+                    'our portfolio',
+                    'our expertise'
+    ),
+    regex.icontains(body.current_thread.text,
+                    'pricing (options|details)',
+                    'discuss your requirements',
+                    'share (our|a) (portfolio|quote)',
+                    'happy to discuss',
+                    'free (consultation|quote|estimate)'
+    ),
+    regex.icontains(body.current_thread.text,
+                    'website (design|development|redesign)',
+                    'SEO (services|optimization)',
+                    'marketing (services|agency|solutions)',
+                    'app development',
+                    'graphic design',
+                    'social media (management|marketing)',
+                    'lead generation'
+    )
+  )
+
+  // sender is new
+  and profile.by_sender().prevalence in ("new", "outlier")
+attack_types:
+  - "Spam"
+tactics_and_techniques:
+  - "Social engineering"
+detection_methods:
+  - "Content analysis"
+  - "Sender analysis"

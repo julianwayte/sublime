@@ -1,0 +1,36 @@
+name: "Evasion: Sender email local part embeds freemail provider domain"
+description: |
+  Detects inbound messages where the sender email local part (the portion before @)
+  contains a freemail provider domain name like "gmail.com" or "yahoo.com", making
+  the address appear to be from a freemail provider at first glance when it is
+  actually sent from a different domain. Example: "user.gmail.com@evil-domain.com".
+  This is an anti-analysis technique used by spammers and phishers to deceive
+  recipients into trusting the sender.
+type: "rule"
+severity: "medium"
+source: |
+  type.inbound
+
+  // sender local part contains a freemail domain string
+  and regex.icontains(sender.email.local_part,
+                      '(gmail|yahoo|outlook|hotmail|aol|icloud|protonmail|ymail).com'
+  )
+
+  // the actual sender domain is NOT a freemail provider
+  and not sender.email.domain.domain in $free_email_providers
+
+  // sender is not a known trusted domain
+  and sender.email.domain.root_domain not in $high_trust_sender_root_domains
+
+  // sender is not from org domain
+  and sender.email.domain.root_domain not in $org_domains
+attack_types:
+  - "Spam"
+  - "Credential Phishing"
+tactics_and_techniques:
+  - "Evasion"
+  - "Social engineering"
+detection_methods:
+  - "Header analysis"
+  - "Sender analysis"
+

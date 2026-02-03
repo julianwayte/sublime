@@ -1,0 +1,69 @@
+name: "Fraud: Prize or gift scam with link to free file host"
+description: |
+  Detects inbound messages using prize, gift, or reward scam language (e.g. "congratulations
+  you're a winner", "randomly selected", "claim your gift") combined with links hosted on
+  free file hosting infrastructure such as Google Cloud Storage, Firebase, Netlify, or
+  similar services commonly abused by scammers. The rule also validates via NLU that the
+  message intent is advance fee fraud. This targets scam campaigns that impersonate brands
+  like Harry & David, Costco, Walmart, etc. to lure victims into fake prize claims.
+type: "rule"
+severity: "high"
+source: |
+  type.inbound
+
+  // body contains prize, reward, or gift scam language
+  and 2 of (
+    regex.icontains(body.current_thread.text,
+                    'congratulations.*winner',
+                    "you.?re a winner",
+                    'you have won',
+                    'been (randomly )?selected'
+    ),
+    regex.icontains(body.current_thread.text,
+                    'exclusive reward',
+                    'special gift',
+                    'gift (basket|card|box)',
+                    'gourmet gift',
+                    'prize'
+    ),
+    regex.icontains(body.current_thread.text,
+                    'claim.*(gift|reward|prize|now)',
+                    'confirm your (details|information|address)',
+                    'complete your claim',
+                    'hurry up',
+                    'currently waiting for you'
+    ),
+  )
+
+  // at least one link goes to a free file host or free subdomain host
+  and any(body.links,
+          .href_url.domain.domain in $free_file_hosts
+          or .href_url.domain.root_domain in $free_file_hosts
+          or .href_url.domain.root_domain in $free_subdomain_hosts
+  )
+
+  // NLU detects advance fee fraud or callback phishing intent
+  and any(ml.nlu_classifier(body.current_thread.text).intents,
+          .name in ("advance_fee", "callback_phishing") and .confidence in ("medium", "high")
+  )
+
+  // negate highly trusted sender domains unless they fail DMARC authentication
+  and (
+    (
+      sender.email.domain.root_domain in $high_trust_sender_root_domains
+      and not headers.auth_summary.dmarc.pass
+    )
+    or sender.email.domain.root_domain not in $high_trust_sender_root_domains
+  )
+attack_types:
+  - "BEC/Fraud"
+tactics_and_techniques:
+  - "Evasion"
+  - "Free file host"
+  - "Impersonation: Brand"
+  - "Social engineering"
+detection_methods:
+  - "Content analysis"
+  - "Natural Language Understanding"
+  - "Sender analysis"
+  - "URL analysis"

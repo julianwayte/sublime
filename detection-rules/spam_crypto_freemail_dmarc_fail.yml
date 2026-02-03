@@ -1,0 +1,57 @@
+name: "Spam: Cryptocurrency or DeFi promotion from freemail with DMARC failure"
+description: |
+  Detects inbound messages promoting cryptocurrency trading, DeFi platforms, or
+  blockchain investments sent from freemail providers where DMARC authentication
+  fails. This combination indicates the message was sent via a bulk email service
+  (e.g., SendGrid) using a spoofed freemail sender address to promote dubious
+  exchanges, tokens, or trading platforms. Legitimate crypto services send from
+  their own authenticated domains.
+type: "rule"
+severity: "medium"
+source: |
+  type.inbound
+
+  // body contains cryptocurrency/DeFi promotion language
+  and 2 of (
+    regex.icontains(body.current_thread.text,
+                    'crypto(currency)?',
+                    'blockchain',
+                    'decentral',
+                    'trading (volume|pair)',
+                    'perpetual (contract|dex|exchange)',
+                    'token',
+                    'web ?3'
+    ),
+    regex.icontains(body.current_thread.text,
+                    'exchange',
+                    'sign up now',
+                    'open interest',
+                    'non-custodial',
+                    '(zero|no) gas fee',
+                    'trading pair'
+    ),
+    regex.icontains(subject.subject,
+                    'exchange',
+                    'crypto',
+                    'bitcoin',
+                    'blockchain',
+                    'DeFi',
+                    'token',
+                    'trading'
+    )
+  )
+
+  // sender is from freemail
+  and sender.email.domain.domain in $free_email_providers
+
+  // DMARC fails (indicating infrastructure mismatch / spoofed sender)
+  and not headers.auth_summary.dmarc.pass
+attack_types:
+  - "Spam"
+tactics_and_techniques:
+  - "Social engineering"
+  - "Evasion"
+detection_methods:
+  - "Content analysis"
+  - "Sender analysis"
+  - "Header analysis"
