@@ -1,9 +1,0 @@
-source: "type.inbound\nand any(attachments, .file_extension in~ (\"pdf\"))\n "
-type: rule
-name: Test PDF rule
-authors:
-- name: Julian Wayte
-description: ""
-references: []
-tags: []
-severity: low
