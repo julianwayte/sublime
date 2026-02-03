@@ -67,5 +67,6 @@ detection_methods:
   - "Natural Language Understanding"
   - "Sender analysis"
   - "URL analysis"
-authors: {name: "Julian Wayte"}
+authors: 
+  - name: "Julian Wayte"
 
